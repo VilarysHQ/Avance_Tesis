@@ -1,15 +1,21 @@
 import { useCallback, useState } from "react";
 
 import useQuoteFlow from "../../hooks/useQuoteFlow";
+import useSmartQuoteFlow from "../../hooks/useSmartQuoteFlow";
 import ChatPanel from "./ChatPanel";
 import QuoteRequestForm from "./QuoteRequestForm";
 import QuoteSummary from "./QuoteSummary";
+import SmartChatPanel from "./SmartChatPanel";
 
 export default function QuoteAssistant() {
-    const flow = useQuoteFlow();
+    const classicFlow = useQuoteFlow();
+    const smartFlow = useSmartQuoteFlow();
+    const [mode, setMode] = useState("smart");
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const flow = mode === "smart" ? smartFlow : classicFlow;
 
     const { isComplete, answers, quote, reset } = flow;
+    const requirements = flow.context?.requirements ?? null;
 
     const handleOpenForm = useCallback(() => {
         if (isComplete) setIsFormOpen(true);
@@ -17,6 +23,11 @@ export default function QuoteAssistant() {
 
     const handleCloseForm = useCallback(() => {
         setIsFormOpen(false);
+    }, []);
+
+    const handleModeChange = useCallback((nextMode) => {
+        setIsFormOpen(false);
+        setMode(nextMode);
     }, []);
 
     const handleStartOver = useCallback(() => {
@@ -67,7 +78,7 @@ export default function QuoteAssistant() {
               shadow-sm
             "
                     >
-                        ✦ Cotizador guiado
+                        ✦ Cotizador inteligente
                     </span>
 
                     <h2
@@ -86,9 +97,18 @@ export default function QuoteAssistant() {
                     </h2>
 
                     <p className="mx-auto mt-3 max-w-[700px] text-[15px] leading-6 text-slate-600">
-                        Responde algunas preguntas para entender mejor tu proyecto y
-                        obtener una estimación inicial.
+                        Describe tu idea libremente o utiliza el cuestionario clásico para
+                        obtener una estimación preliminar.
                     </p>
+                </div>
+
+                <div className="mx-auto mt-6 flex w-fit rounded-xl border border-blue-100 bg-white p-1 shadow-sm" role="group" aria-label="Modo del cotizador">
+                    <ModeButton active={mode === "smart"} onClick={() => handleModeChange("smart")}>
+                        Conversar con IA
+                    </ModeButton>
+                    <ModeButton active={mode === "classic"} onClick={() => handleModeChange("classic")}>
+                        Cuestionario clásico
+                    </ModeButton>
                 </div>
 
                 {/* MAIN */}
@@ -101,7 +121,14 @@ export default function QuoteAssistant() {
             lg:grid-cols-[1.75fr_0.85fr]
           "
                 >
-                    <ChatPanel flow={flow} />
+                    {mode === "smart" ? (
+                        <SmartChatPanel
+                            flow={smartFlow}
+                            onUseClassic={() => handleModeChange("classic")}
+                        />
+                    ) : (
+                        <ChatPanel flow={classicFlow} />
+                    )}
                     <QuoteSummary flow={flow} onRequest={handleOpenForm} />
                 </div>
             </div>
@@ -110,10 +137,28 @@ export default function QuoteAssistant() {
                 <QuoteRequestForm
                     answers={answers}
                     quote={quote}
+                    requirements={requirements}
                     onClose={handleCloseForm}
                     onStartOver={handleStartOver}
                 />
             )}
         </section>
+    );
+}
+
+function ModeButton({ active, onClick, children }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={`rounded-lg px-4 py-2 text-[12px] font-semibold transition ${
+                active
+                    ? "bg-[#173cff] text-white shadow-[0_6px_16px_rgba(23,60,255,0.18)]"
+                    : "text-slate-500 hover:bg-blue-50 hover:text-[#173cff]"
+            }`}
+        >
+            {children}
+        </button>
     );
 }

@@ -1,13 +1,25 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
+  import.meta.env?.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
 const DEFAULT_TIMEOUT = 15000;
+let adminCsrfToken = null;
 
-function buildRequestError(message, { status = null, details = null, isNetworkError = false } = {}) {
+function buildRequestError(
+  message,
+  {
+    status = null,
+    details = null,
+    isNetworkError = false,
+    isTimeout = false,
+    isCancelled = false,
+  } = {}
+) {
   const error = new Error(message);
   error.status = status;
   error.details = details;
   error.isNetworkError = isNetworkError;
+  error.isTimeout = isTimeout;
+  error.isCancelled = isCancelled;
   return error;
 }
 
@@ -24,26 +36,43 @@ function buildRequestError(message, { status = null, details = null, isNetworkEr
 export async function apiRequest(path, options = {}) {
   const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const externalSignal = fetchOptions.signal;
+  let timedOut = false;
+  const forwardAbort = () => controller.abort(externalSignal?.reason);
+  externalSignal?.addEventListener("abort", forwardAbort, { once: true });
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeout);
 
   let response;
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchOptions,
       headers: {
         "Content-Type": "application/json",
         ...(fetchOptions.headers ?? {}),
       },
-      ...fetchOptions,
-      signal: fetchOptions.signal ?? controller.signal,
+      signal: controller.signal,
     });
   } catch {
-    clearTimeout(timeoutId);
+    if (timedOut) {
+      throw buildRequestError("El asistente tardó demasiado en responder.", {
+        isTimeout: true,
+      });
+    }
+    if (externalSignal?.aborted) {
+      throw buildRequestError("La solicitud fue cancelada.", {
+        isCancelled: true,
+      });
+    }
     throw buildRequestError("No pudimos conectar con el servidor.", {
       isNetworkError: true,
     });
   } finally {
     clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", forwardAbort);
   }
 
   let payload;
@@ -64,6 +93,53 @@ export async function apiRequest(path, options = {}) {
   return payload;
 }
 
+async function adminRequest(path, options = {}) {
+  const method = options.method ?? "GET";
+  const headers = { ...(options.headers ?? {}) };
+  if (method !== "GET" && method !== "HEAD" && adminCsrfToken) {
+    headers["X-CSRF-Token"] = adminCsrfToken;
+  }
+
+  try {
+    return await apiRequest(path, {
+      ...options,
+      method,
+      headers,
+      credentials: "include",
+    });
+  } catch (error) {
+    if (error.status === 401) adminCsrfToken = null;
+    throw error;
+  }
+}
+
+function rememberAdminSession(payload) {
+  adminCsrfToken = typeof payload?.csrfToken === "string" ? payload.csrfToken : null;
+  return payload;
+}
+
+export async function loginAdmin(email, password) {
+  const payload = await apiRequest("/admin/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+    credentials: "include",
+  });
+  return rememberAdminSession(payload);
+}
+
+export async function getAdminSession() {
+  const payload = await adminRequest("/admin/auth/session");
+  return rememberAdminSession(payload);
+}
+
+export async function logoutAdmin() {
+  try {
+    return await adminRequest("/admin/auth/logout", { method: "POST" });
+  } finally {
+    adminCsrfToken = null;
+  }
+}
+
 export function getHealth() {
   return apiRequest("/health");
 }
@@ -73,7 +149,7 @@ export function getHealth() {
  * GET /api/quotes
  */
 export async function getQuotes() {
-  const body = await apiRequest("/quotes");
+  const body = await adminRequest("/quotes");
   return body?.data ?? [];
 }
 
@@ -82,21 +158,21 @@ export async function getQuotes() {
  * PATCH /api/quotes/:id/status
  */
 export function updateQuoteStatus(id, status) {
-  return apiRequest(`/quotes/${id}/status`, {
+  return adminRequest(`/quotes/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
 }
 
 export function createLead(data) {
-  return apiRequest("/leads", {
+  return adminRequest("/leads", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function createQuote(data) {
-  return apiRequest("/quotes", {
+  return adminRequest("/quotes", {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -111,6 +187,43 @@ export function createQuoteRequest(data) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+const REQUIREMENTS_TIMEOUT = 35_000;
+
+function isRequirementsPayload(payload) {
+  return (
+    payload?.success === true &&
+    payload.requirements &&
+    typeof payload.requirements === "object" &&
+    payload.fieldStatus &&
+    typeof payload.fieldStatus === "object" &&
+    Array.isArray(payload.missingFields) &&
+    Array.isArray(payload.ambiguousFields) &&
+    typeof payload.complete === "boolean" &&
+    typeof payload.assistantReply === "string" &&
+    payload.assistantReply.trim().length > 0 &&
+    (payload.offeredOptionsField === null ||
+      typeof payload.offeredOptionsField === "string") &&
+    Array.isArray(payload.offeredOptions) &&
+    (payload.followUpQuestion === null ||
+      typeof payload.followUpQuestion === "string")
+  );
+}
+
+export async function extractRequirements(message, context = null, { signal } = {}) {
+  const payload = await apiRequest("/ai/requirements", {
+    method: "POST",
+    body: JSON.stringify({ message, context }),
+    timeout: REQUIREMENTS_TIMEOUT,
+    signal,
+  });
+
+  if (!isRequirementsPayload(payload)) {
+    throw buildRequestError("El servidor devolvió una respuesta no válida.");
+  }
+
+  return payload;
 }
 
 export { API_BASE_URL };

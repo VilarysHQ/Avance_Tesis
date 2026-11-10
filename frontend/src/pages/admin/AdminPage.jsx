@@ -13,11 +13,19 @@ import {
 } from "lucide-react";
 
 import AdminSidebar from "../../components/Admin/AdminSidebar";
+import AdminLogin from "../../components/Admin/AdminLogin";
 import AdminTopbar from "../../components/Admin/AdminTopbar";
 import AdminStatCard from "../../components/Admin/AdminStatCard";
 import RequestsTable from "../../components/Admin/RequestsTable";
 import RequestDetailModal from "../../components/Admin/RequestDetailModal";
-import { getQuotes, updateQuoteStatus } from "../../services/api";
+import {
+  getAdminSession,
+  getQuotes,
+  loginAdmin,
+  logoutAdmin,
+  updateQuoteStatus,
+} from "../../services/api";
+import { saveConfirmedQuoteStatus } from "../../utils/adminQuoteStatus";
 
 const PAGE_SIZE = 10;
 
@@ -42,6 +50,56 @@ function getFriendlyError(error) {
 }
 
 export default function AdminPage() {
+  const [auth, setAuth] = useState({ status: "checking", user: null, error: "" });
+
+  useEffect(() => {
+    let active = true;
+    getAdminSession()
+      .then((session) => {
+        if (active) setAuth({ status: "authenticated", user: session.user, error: "" });
+      })
+      .catch((error) => {
+        if (!active) return;
+        const message = error?.status === 503
+          ? "El acceso administrativo no está configurado."
+          : "";
+        setAuth({ status: "anonymous", user: null, error: message });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleLogin = async (email, password) => {
+    const session = await loginAdmin(email, password);
+    setAuth({ status: "authenticated", user: session.user, error: "" });
+  };
+
+  if (auth.status === "checking") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f8ff]">
+        <div className="text-center text-sm text-slate-500">
+          <Loader2 className="mx-auto mb-3 animate-spin text-[#173cff]" size={28} />
+          Verificando sesión...
+        </div>
+      </main>
+    );
+  }
+
+  if (auth.status !== "authenticated") {
+    return <AdminLogin onLogin={handleLogin} initialError={auth.error} />;
+  }
+
+  return (
+    <AdminDashboard
+      adminUser={auth.user}
+      onSessionExpired={() => setAuth({ status: "anonymous", user: null, error: "Tu sesión finalizó. Ingresa nuevamente." })}
+      onLogoutComplete={() => setAuth({ status: "anonymous", user: null, error: "" })}
+    />
+  );
+}
+
+function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -49,6 +107,7 @@ export default function AdminPage() {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   const handleRefresh = () => {
     setLoading(true);
@@ -56,7 +115,10 @@ export default function AdminPage() {
 
     getQuotes()
       .then((data) => setQuotes(Array.isArray(data) ? data : []))
-      .catch((error) => setLoadError(getFriendlyError(error)))
+      .catch((error) => {
+        if (error?.status === 401 || error?.status === 403) onSessionExpired();
+        else setLoadError(getFriendlyError(error));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -69,7 +131,9 @@ export default function AdminPage() {
         setQuotes(Array.isArray(data) ? data : []);
       })
       .catch((error) => {
-        if (active) setLoadError(getFriendlyError(error));
+        if (!active) return;
+        if (error?.status === 401 || error?.status === 403) onSessionExpired();
+        else setLoadError(getFriendlyError(error));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -78,7 +142,7 @@ export default function AdminPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [onSessionExpired]);
 
   const stats = useMemo(() => {
     const byStatus = (status) =>
@@ -123,20 +187,27 @@ export default function AdminPage() {
 
   const handleStatusChange = async (id, status) => {
     try {
-      const response = await updateQuoteStatus(id, status);
-      const updated = response?.data;
-
-      if (updated) {
-        setQuotes((prev) =>
-          prev.map((quote) =>
-            quote.id === id ? { ...quote, ...updated } : quote
-          )
-        );
-      }
-
-      return updated;
+      const result = await saveConfirmedQuoteStatus({
+        quotes,
+        quoteId: id,
+        status,
+        request: updateQuoteStatus,
+      });
+      setQuotes(result.quotes);
+      return result.updated;
     } catch (error) {
+      if (error?.status === 401 || error?.status === 403) onSessionExpired();
       throw new Error(getFriendlyError(error), { cause: error });
+    }
+  };
+
+  const handleLogout = async () => {
+    if (logoutLoading) return;
+    setLogoutLoading(true);
+    try {
+      await logoutAdmin();
+    } finally {
+      onLogoutComplete();
     }
   };
 
@@ -161,6 +232,9 @@ export default function AdminPage() {
           search={search}
           onSearchChange={handleSearchChange}
           onOpenSidebar={() => setSidebarOpen(true)}
+          adminEmail={adminUser?.email}
+          onLogout={handleLogout}
+          logoutLoading={logoutLoading}
         />
 
         <div className="flex-1">

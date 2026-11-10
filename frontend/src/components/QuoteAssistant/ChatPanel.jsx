@@ -294,7 +294,7 @@ export default function ChatPanel({ flow }) {
   );
 }
 
-function Progress({ active = false }) {
+export function Progress({ active = false }) {
   return (
     <div
       className={`
@@ -307,7 +307,7 @@ function Progress({ active = false }) {
   );
 }
 
-function UserMessage({ children, time }) {
+export function UserMessage({ children, time }) {
   return (
     <div className="mb-4 flex justify-end">
       <div className="max-w-[72%]">

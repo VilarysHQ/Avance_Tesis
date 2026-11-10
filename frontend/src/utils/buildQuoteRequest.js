@@ -35,7 +35,11 @@ export function getProjectTypeSlug(value) {
  * La tabla quotes no tiene columnas para integraciones, diseño, plazo, etc.,
  * así que se serializan aquí de forma estructurada y entendible.
  */
-export function buildQuoteNotes(answers) {
+function joinDetails(values) {
+  return Array.isArray(values) && values.length > 0 ? values.join(", ") : "No indicado";
+}
+
+export function buildQuoteNotes(answers, requirements = null) {
   const lines = [
     `Tipo de web: ${getSummaryLabel(getStepById("projectType"), answers.projectType) ?? "No indicado"}`,
     `Secciones: ${getSummaryLabel(getStepById("sections"), answers.sections) ?? "No indicado"}`,
@@ -44,6 +48,16 @@ export function buildQuoteNotes(answers) {
     `Plazo: ${getSummaryLabel(getStepById("deadline"), answers.deadline) ?? "No indicado"}`,
     `Detalle adicional: ${answers.additionalDetails?.trim() || "No indicado"}`,
   ];
+
+  if (requirements) {
+    lines.push(
+      `Descripción del negocio: ${requirements.businessDescription || "No indicado"}`,
+      `Funcionalidades solicitadas: ${joinDetails(requirements.requestedFeatures)}`,
+      `Detalles de integraciones: ${joinDetails(requirements.integrationDetails)}`,
+      `Necesidades de diseño: ${requirements.designNotes || "No indicado"}`,
+      `Detalle del plazo: ${requirements.deadlineDetails || "No indicado"}`
+    );
+  }
 
   return lines.join("\n");
 }
@@ -54,8 +68,14 @@ export function buildQuoteNotes(answers) {
  * Usa los valores YA calculados por calculateQuote (quote.estimatedMin/Max y
  * quote.weeksMin/Max) para no duplicar la lógica de precios.
  */
-export function buildQuoteRequestPayload({ answers, quote, contact }) {
+export function buildQuoteRequestPayload({
+  answers,
+  contact,
+  requestId,
+  requirements = null,
+}) {
   return {
+    request_id: requestId,
     lead: {
       full_name: contact.fullName.trim(),
       company_name: contact.companyName.trim() || null,
@@ -66,15 +86,11 @@ export function buildQuoteRequestPayload({ answers, quote, contact }) {
     },
     quote: {
       project_type: getProjectTypeSlug(answers.projectType),
-      // La interfaz usa rangos (4-6). No falseamos un valor exacto:
-      // el rango queda guardado en notes.
-      sections_count: null,
-      estimated_min: quote.estimatedMin,
-      estimated_max: quote.estimatedMax,
-      estimated_weeks_min: quote.weeksMin,
-      estimated_weeks_max: quote.weeksMax,
-      status: "submitted",
-      notes: buildQuoteNotes(answers),
+      sections: answers.sections,
+      integrations: [...answers.integrations],
+      design_status: answers.designStatus,
+      deadline: answers.deadline,
+      notes: buildQuoteNotes(answers, requirements),
     },
   };
 }

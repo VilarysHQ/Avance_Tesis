@@ -1,4 +1,5 @@
 export const QUOTE_STATUSES = [
+  "draft",
   "submitted",
   "contacted",
   "sent",
@@ -8,6 +9,10 @@ export const QUOTE_STATUSES = [
 ];
 
 export const QUOTE_STATUS_MAP = {
+  draft: {
+    label: "Borrador",
+    classes: "bg-slate-100 text-slate-600 border-slate-200",
+  },
   submitted: {
     label: "Nueva",
     classes: "bg-blue-50 text-blue-600 border-blue-100",

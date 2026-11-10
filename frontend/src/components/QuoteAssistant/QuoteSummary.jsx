@@ -3,6 +3,7 @@ import {
   PanelsTopLeft,
   Puzzle,
   Clock3,
+  CalendarDays,
   Coins,
   ArrowRight,
   Lightbulb,
@@ -17,6 +18,7 @@ const PENDING = "Pendiente";
 
 export default function QuoteSummary({ flow, onRequest }) {
   const { answers, quote, isComplete, reset } = flow;
+  const requirements = flow.context?.requirements ?? null;
 
   const projectTypeStep = getStepById("projectType");
 
@@ -66,6 +68,8 @@ export default function QuoteSummary({ flow, onRequest }) {
             </p>
           </div>
         </div>
+
+        {requirements && <RequirementsDetails requirements={requirements} />}
       </div>
 
       <div className="p-5">
@@ -92,8 +96,14 @@ export default function QuoteSummary({ flow, onRequest }) {
           />
 
           <SummaryRow
+            icon={CalendarDays}
+            label="Plazo deseado por el cliente"
+            value={getSummaryLabel(getStepById("deadline"), answers.deadline)}
+          />
+
+          <SummaryRow
             icon={Clock3}
-            label="Tiempo estimado"
+            label="Tiempo estimado de desarrollo"
             value={formatWeeks(quote.weeksMin, quote.weeksMax)}
           />
 
@@ -193,6 +203,57 @@ export default function QuoteSummary({ flow, onRequest }) {
         )}
       </div>
     </aside>
+  );
+}
+
+function RequirementsDetails({ requirements }) {
+  const features = requirements.requestedFeatures ?? [];
+  const integrations = requirements.integrationDetails ?? [];
+  const hasDetails = Boolean(
+    requirements.businessDescription ||
+      features.length > 0 ||
+      integrations.length > 0 ||
+      requirements.designNotes ||
+      requirements.deadlineDetails
+  );
+
+  if (!hasDetails) return null;
+
+  return (
+    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-[#173cff]">
+        Detalles para revisión
+      </p>
+      {requirements.businessDescription && (
+        <p className="mt-2 text-[11px] leading-[18px] text-slate-600">
+          {requirements.businessDescription}
+        </p>
+      )}
+      {features.length > 0 && (
+        <DetailLine label="Funcionalidades" value={features.join(", ")} />
+      )}
+      {integrations.length > 0 && (
+        <DetailLine label="Integraciones mencionadas" value={integrations.join(", ")} />
+      )}
+      {requirements.designNotes && (
+        <DetailLine label="Diseño" value={requirements.designNotes} />
+      )}
+      {requirements.deadlineDetails && (
+        <DetailLine label="Detalle del plazo solicitado" value={requirements.deadlineDetails} />
+      )}
+      <p className="mt-2 text-[10px] leading-4 text-slate-400">
+        Estos detalles se conservan para revisión comercial. Solo las opciones del cotizador
+        intervienen en la estimación mostrada.
+      </p>
+    </div>
+  );
+}
+
+function DetailLine({ label, value }) {
+  return (
+    <p className="mt-1.5 text-[11px] leading-[18px] text-slate-600">
+      <span className="font-semibold text-slate-700">{label}:</span> {value}
+    </p>
   );
 }
 

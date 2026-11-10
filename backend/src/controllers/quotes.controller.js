@@ -1,11 +1,10 @@
 import * as leadsService from '../services/leads.service.js';
 import * as quotesService from '../services/quotes.service.js';
 import {
-  isNonEmptyString,
-  toIntegerOrNull,
-  toNullableString,
-  toNumberOrNull,
-} from '../utils/validators.js';
+  calculateServerQuote,
+  validateQuoteContract,
+} from '../domain/quoteCalculator.js';
+import { toIntegerOrNull, toNullableString } from '../utils/validators.js';
 
 const ALLOWED_STATUSES = [
   'draft',
@@ -26,116 +25,113 @@ export async function listQuotes(req, res, next) {
   }
 }
 
-export async function createQuote(req, res, next) {
-  try {
-    const body = req.body ?? {};
+export function createQuoteController({
+  findLead = leadsService.findLeadById,
+  persistQuote = quotesService.createQuote,
+} = {}) {
+  return async function createQuoteHandler(req, res, next) {
+    try {
+      const body = req.body ?? {};
 
-    const leadId = toIntegerOrNull(body.lead_id);
-    const projectType = toNullableString(body.project_type);
-    const sectionsCount = toIntegerOrNull(body.sections_count);
-    const estimatedMin = toNumberOrNull(body.estimated_min);
-    const estimatedMax = toNumberOrNull(body.estimated_max);
-    const weeksMin = toIntegerOrNull(body.estimated_weeks_min);
-    const weeksMax = toIntegerOrNull(body.estimated_weeks_max);
-    const notes = toNullableString(body.notes);
-    const status = toNullableString(body.status) ?? 'draft';
+      const leadId = toIntegerOrNull(body.lead_id);
+      const projectType = toNullableString(body.project_type);
+      const sections = toNullableString(body.sections);
+      const integrations = body.integrations;
+      const designStatus = toNullableString(body.design_status);
+      const deadline = toNullableString(body.deadline);
+      const notes = toNullableString(body.notes);
+      const status = toNullableString(body.status) ?? 'draft';
+      const quoteContract = {
+        project_type: projectType,
+        sections,
+        integrations,
+        design_status: designStatus,
+        deadline,
+      };
 
-    const errors = [];
+      const errors = [];
 
-    if (leadId === null || leadId <= 0) {
-      errors.push('lead_id es obligatorio y debe ser un entero positivo.');
-    }
+      if (leadId === null || leadId <= 0) {
+        errors.push('lead_id es obligatorio y debe ser un entero positivo.');
+      }
 
-    if (!isNonEmptyString(body.project_type)) {
-      errors.push('project_type es obligatorio.');
-    }
+      errors.push(...validateQuoteContract(quoteContract));
 
-    if (estimatedMin === null || estimatedMin < 0) {
-      errors.push('estimated_min es obligatorio y debe ser un número mayor o igual a 0.');
-    }
+      if (!ALLOWED_STATUSES.includes(status)) {
+        errors.push(`status debe ser uno de: ${ALLOWED_STATUSES.join(', ')}.`);
+      }
 
-    if (estimatedMax === null || estimatedMax < 0) {
-      errors.push('estimated_max es obligatorio y debe ser un número mayor o igual a 0.');
-    }
+      if (errors.length > 0) {
+        return res.status(400).json({ error: 'Validación fallida.', details: errors });
+      }
 
-    if (
-      estimatedMin !== null &&
-      estimatedMax !== null &&
-      estimatedMax < estimatedMin
-    ) {
-      errors.push('estimated_max debe ser mayor o igual que estimated_min.');
-    }
+      const leadExists = await findLead(leadId);
+      if (!leadExists) {
+        return res.status(400).json({
+          error: 'Validación fallida.',
+          details: [`No existe un lead con id ${leadId}.`],
+        });
+      }
 
-    if (!ALLOWED_STATUSES.includes(status)) {
-      errors.push(`status debe ser uno de: ${ALLOWED_STATUSES.join(', ')}.`);
-    }
-
-    if (errors.length > 0) {
-      return res.status(400).json({ error: 'Validación fallida.', details: errors });
-    }
-
-    const leadExists = await leadsService.findLeadById(leadId);
-    if (!leadExists) {
-      return res.status(400).json({
-        error: 'Validación fallida.',
-        details: [`No existe un lead con id ${leadId}.`],
+      const calculatedQuote = calculateServerQuote(quoteContract);
+      const quote = await persistQuote({
+        lead_id: leadId,
+        ...calculatedQuote,
+        status,
+        notes,
       });
+
+      return res.status(201).json({ data: quote });
+    } catch (error) {
+      return next(error);
     }
-
-    const quote = await quotesService.createQuote({
-      lead_id: leadId,
-      project_type: projectType,
-      sections_count: sectionsCount,
-      estimated_min: estimatedMin,
-      estimated_max: estimatedMax,
-      estimated_weeks_min: weeksMin,
-      estimated_weeks_max: weeksMax,
-      status,
-      notes,
-    });
-
-    return res.status(201).json({ data: quote });
-  } catch (error) {
-    return next(error);
-  }
+  };
 }
+
+export const createQuote = createQuoteController();
 
 /**
  * Actualiza únicamente el estado de una cotización existente.
  * PATCH /api/quotes/:id/status
  */
-export async function updateQuoteStatus(req, res, next) {
-  try {
-    const quoteId = toIntegerOrNull(req.params.id);
-    const status = toNullableString(req.body?.status);
+export function updateQuoteStatusController(
+  persistStatus = quotesService.updateQuoteStatus
+) {
+  return async function updateQuoteStatusHandler(req, res, next) {
+    try {
+      const quoteId = toIntegerOrNull(req.params.id);
+      const status = toNullableString(req.body?.status);
 
-    const errors = [];
+      const errors = [];
 
-    if (quoteId === null || quoteId <= 0) {
-      errors.push('id debe ser un entero positivo.');
+      if (quoteId === null || quoteId <= 0) {
+        errors.push('id debe ser un entero positivo.');
+      }
+
+      if (!status) {
+        errors.push('status es obligatorio.');
+      } else if (!ALLOWED_STATUSES.includes(status)) {
+        errors.push(`status debe ser uno de: ${ALLOWED_STATUSES.join(', ')}.`);
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({ error: 'Validación fallida.', details: errors });
+      }
+
+      const quote = await persistStatus(quoteId, status);
+
+      if (!quote) {
+        return res.status(404).json({
+          error: 'No se encontró la cotización solicitada.',
+          details: [`No existe una cotización con id ${quoteId}.`],
+        });
+      }
+
+      return res.json({ data: quote });
+    } catch (error) {
+      return next(error);
     }
-
-    if (!status) {
-      errors.push('status es obligatorio.');
-    } else if (!ALLOWED_STATUSES.includes(status)) {
-      errors.push(`status debe ser uno de: ${ALLOWED_STATUSES.join(', ')}.`);
-    }
-
-    if (errors.length > 0) {
-      return res.status(400).json({ error: 'Validación fallida.', details: errors });
-    }
-
-    const quote = await quotesService.updateQuoteStatus(quoteId, status);
-
-    if (!quote) {
-      return res.status(404).json({
-        error: 'No se encontró la cotización solicitada.',
-        details: [`No existe una cotización con id ${quoteId}.`],
-      });
-    }
-
-    return res.json({ data: quote });
-  } catch (error) {
-    return next(error);
-  }
+  };
 }
+
+export const updateQuoteStatus = updateQuoteStatusController();

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -20,6 +20,10 @@ import {
   getProjectTypeLabel,
 } from "../../utils/buildQuoteRequest";
 import { formatPriceRange, formatWeeks } from "../../utils/formatQuote";
+import {
+  createRequestId,
+  createSubmissionGuard,
+} from "../../utils/submissionGuard";
 
 const EMPTY_FIELDS = {
   fullName: "",
@@ -62,6 +66,10 @@ function getFriendlyError(error) {
     return error?.details?.[0] ?? "Algunos datos no son válidos. Revísalos e intenta nuevamente.";
   }
 
+  if (error?.status === 409) {
+    return "La solicitud cambió después de iniciarse. Revísala e intenta enviarla nuevamente.";
+  }
+
   if (error?.status >= 500) {
     return "Ocurrió un problema en el servidor. Intenta nuevamente en unos momentos.";
   }
@@ -72,6 +80,7 @@ function getFriendlyError(error) {
 export default function QuoteRequestForm({
   answers,
   quote,
+  requirements,
   onClose,
   onStartOver,
 }) {
@@ -80,6 +89,8 @@ export default function QuoteRequestForm({
   const [status, setStatus] = useState("idle");
   const [serverError, setServerError] = useState("");
   const [result, setResult] = useState(null);
+  const [submissionGuard] = useState(createSubmissionGuard);
+  const requestIdRef = useRef(null);
 
   const isLoading = status === "loading";
 
@@ -96,6 +107,7 @@ export default function QuoteRequestForm({
     const value = event.target.value;
     setFields((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    requestIdRef.current = null;
   };
 
   const handleSubmit = async (event) => {
@@ -108,17 +120,27 @@ export default function QuoteRequestForm({
       return;
     }
 
+    if (!submissionGuard.tryStart()) return;
+    requestIdRef.current ??= createRequestId();
+
     setStatus("loading");
     setServerError("");
 
     try {
-      const payload = buildQuoteRequestPayload({ answers, quote, contact: fields });
+      const payload = buildQuoteRequestPayload({
+        answers,
+        contact: fields,
+        requestId: requestIdRef.current,
+        requirements,
+      });
       const response = await createQuoteRequest(payload);
       setResult(response.data);
       setStatus("success");
     } catch (error) {
       setStatus("error");
       setServerError(getFriendlyError(error));
+    } finally {
+      submissionGuard.finish();
     }
   };
 

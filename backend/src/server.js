@@ -3,8 +3,10 @@ import { pool } from './config/db.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 
-const server = app.listen(PORT, () => {
-  console.log(`API escuchando en http://localhost:${PORT}`);
+const HOST = '0.0.0.0';
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`API escuchando en el puerto ${PORT}`);
 });
 
 async function shutdown(signal) {

@@ -1,5 +1,17 @@
 # React + Vite
 
+## Configuración del proyecto
+
+Define `VITE_API_BASE_URL` con la URL pública del backend terminada en `/api`. Esta
+variable es pública y nunca debe contener credenciales.
+
+La ruta `/admin` restaura una sesión mediante cookie HttpOnly, presenta el formulario
+de acceso cuando no existe una sesión y envía el token CSRF validado por Express en
+las operaciones administrativas. Ninguna contraseña o clave se almacena en React.
+
+Para despliegue como SPA debe configurarse en Vercel un rewrite de rutas hacia
+`/index.html`; se incorporará durante la etapa de preparación específica de Vercel.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

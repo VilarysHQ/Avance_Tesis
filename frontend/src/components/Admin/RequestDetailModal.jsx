@@ -16,6 +16,7 @@ import { QUOTE_STATUS_OPTIONS } from "../../utils/quoteStatus";
 import { parseQuoteNotes } from "../../utils/parseQuoteNotes";
 import { formatPriceRange, formatWeeks } from "../../utils/formatQuote";
 import { getProjectTypeLabelBySlug } from "../../utils/buildQuoteRequest";
+import { createSubmissionGuard } from "../../utils/submissionGuard";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -47,6 +48,7 @@ export default function RequestDetailModal({ quote, onClose, onSaveStatus }) {
   const [feedback, setFeedback] = useState(null);
   const containerRef = useRef(null);
   const savingRef = useRef(false);
+  const saveGuardRef = useRef(createSubmissionGuard());
 
   const notes = parseQuoteNotes(quote.notes);
   const integrations = splitList(notes.integrations);
@@ -79,7 +81,7 @@ export default function RequestDetailModal({ quote, onClose, onSaveStatus }) {
   }, [onClose]);
 
   const handleSave = async () => {
-    if (saving || !hasChanges) return;
+    if (!hasChanges || !saveGuardRef.current.tryStart()) return;
 
     savingRef.current = true;
     setSaving(true);
@@ -88,16 +90,16 @@ export default function RequestDetailModal({ quote, onClose, onSaveStatus }) {
     try {
       await onSaveStatus(quote.id, status);
       setFeedback({ type: "success", message: "Estado actualizado correctamente." });
-      savingRef.current = false;
-      setSaving(false);
       window.setTimeout(onClose, 250);
     } catch (error) {
-      savingRef.current = false;
-      setSaving(false);
       setFeedback({
         type: "error",
         message: error?.message ?? "No se pudo actualizar el estado.",
       });
+    } finally {
+      saveGuardRef.current.finish();
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 

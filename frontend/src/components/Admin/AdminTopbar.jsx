@@ -1,6 +1,13 @@
-import { Search, Menu } from "lucide-react";
+import { Search, Menu, LogOut } from "lucide-react";
 
-export default function AdminTopbar({ search = "", onSearchChange, onOpenSidebar }) {
+export default function AdminTopbar({
+  search = "",
+  onSearchChange,
+  onOpenSidebar,
+  adminEmail,
+  onLogout,
+  logoutLoading = false,
+}) {
   return (
     <header
       className="
@@ -104,8 +111,20 @@ export default function AdminTopbar({ search = "", onSearchChange, onOpenSidebar
 
         <div className="hidden sm:block">
           <p className="text-[13px] font-bold text-[#07112d]">Administrador</p>
-          <p className="text-[11px] text-slate-500">J&P Periféricos S.A.C.</p>
+          <p className="max-w-48 truncate text-[11px] text-slate-500">
+            {adminEmail ?? "J&P Periféricos S.A.C."}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={logoutLoading}
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+        >
+          <LogOut size={17} />
+        </button>
       </div>
     </header>
   );
