@@ -3,6 +3,7 @@ import { ThinkingLevel } from '@google/genai';
 import {
   buildGeminiClient,
   DEFAULT_GEMINI_MODEL,
+  executeGeminiRequestWithRetry,
   GEMINI_TIMEOUT_MS,
   GeminiServiceError,
   logGeminiDiagnostic,
@@ -792,6 +793,8 @@ export async function extractGeminiRequirements(
     model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL,
     timeoutMs = GEMINI_TIMEOUT_MS,
     clientFactory = buildGeminiClient,
+    signal,
+    retryPolicy,
   } = {}
 ) {
   const validatedContext = context === null ? null : validateRequirementsContext(context);
@@ -816,19 +819,31 @@ export async function extractGeminiRequirements(
   const startedAt = performance.now();
   try {
     const client = clientFactory(apiKey);
-    const response = await client.models.generateContent({
-      model,
-      contents: toModelPayload(message, validatedContext, contextualReference),
-      config: {
-        systemInstruction: REQUIREMENTS_SYSTEM_INSTRUCTION,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        maxOutputTokens: 1_200,
-        responseMimeType: 'application/json',
-        responseJsonSchema: REQUIREMENTS_RESPONSE_SCHEMA,
-        automaticContinuation: false,
-        httpOptions: { timeout: timeoutMs },
-      },
-    });
+    const response = await executeGeminiRequestWithRetry(
+      ({ timeoutMs: attemptTimeoutMs, signal: attemptSignal }) =>
+        client.models.generateContent({
+          model,
+          contents: toModelPayload(message, validatedContext, contextualReference),
+          config: {
+            systemInstruction: REQUIREMENTS_SYSTEM_INSTRUCTION,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            maxOutputTokens: 1_200,
+            responseMimeType: 'application/json',
+            responseJsonSchema: REQUIREMENTS_RESPONSE_SCHEMA,
+            automaticContinuation: false,
+            abortSignal: attemptSignal,
+            httpOptions: {
+              timeout: attemptTimeoutMs,
+              retryOptions: { attempts: 1 },
+            },
+          },
+        }),
+      {
+        timeoutMs,
+        signal,
+        ...retryPolicy,
+      }
+    );
     return buildRequirementsResult(
       parseModelResponse(response?.text),
       validatedContext,

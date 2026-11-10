@@ -29,6 +29,7 @@ async function run(body, extractor) {
 
 test('POST /requirements devuelve el contrato estructurado', async () => {
   let received;
+  let receivedSignal;
   const result = {
     requirements: { projectType: 'landing' },
     fieldStatus: { projectType: 'confirmed' },
@@ -42,13 +43,15 @@ test('POST /requirements devuelve el contrato estructurado', async () => {
   };
   const response = await run(
     { message: '  Necesito una landing  ', context: null },
-    async (message, context) => {
+    async (message, context, options) => {
       received = { message, context };
+      receivedSignal = options.signal;
       return result;
     }
   );
 
   assert.deepEqual(received, { message: 'Necesito una landing', context: null });
+  assert.ok(receivedSignal instanceof AbortSignal);
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, { success: true, ...result });
   assert.equal(response.body.assistantReply, result.assistantReply);

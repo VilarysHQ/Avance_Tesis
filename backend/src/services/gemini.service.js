@@ -2,6 +2,10 @@ import { ApiError, GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 export const GEMINI_TIMEOUT_MS = 30_000;
+export const GEMINI_MAX_ATTEMPTS = 3;
+export const GEMINI_RETRY_BASE_DELAY_MS = 250;
+
+const GEMINI_MIN_RETRY_BUDGET_MS = 1_000;
 
 export const ASSISTANT_SYSTEM_INSTRUCTION = `Eres el asistente virtual de J&P Periféricos S.A.C., una empresa que ofrece soluciones tecnológicas y desarrollo web.
 
@@ -112,6 +116,81 @@ export function buildGeminiClient(apiKey) {
   return new GoogleGenAI({ apiKey });
 }
 
+function abortError() {
+  const error = new Error('La solicitud fue cancelada.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortError();
+}
+
+function wait(delayMs, signal) {
+  return new Promise((resolve, reject) => {
+    throwIfAborted(signal);
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      reject(abortError());
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function retryDelay(retryNumber, baseDelayMs, random) {
+  const jitterFactor = 0.5 + Math.min(1, Math.max(0, Number(random()) || 0));
+  return Math.round(baseDelayMs * (2 ** (retryNumber - 1)) * jitterFactor);
+}
+
+export function isRetryableGeminiError(error) {
+  return error instanceof ApiError && error.status === 503;
+}
+
+export async function executeGeminiRequestWithRetry(
+  operation,
+  {
+    timeoutMs = GEMINI_TIMEOUT_MS,
+    maxAttempts = GEMINI_MAX_ATTEMPTS,
+    baseDelayMs = GEMINI_RETRY_BASE_DELAY_MS,
+    signal,
+    now = () => performance.now(),
+    random = Math.random,
+    sleep = wait,
+  } = {}
+) {
+  const startedAt = now();
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    throwIfAborted(signal);
+    const remainingMs = attempt === 1
+      ? timeoutMs
+      : Math.floor(timeoutMs - (now() - startedAt));
+    if (remainingMs <= 0) {
+      const error = new Error('Se agotó el tiempo disponible para Gemini.');
+      error.name = 'RequestTimeoutError';
+      throw error;
+    }
+
+    try {
+      return await operation({ attempt, timeoutMs: remainingMs, signal });
+    } catch (error) {
+      throwIfAborted(signal);
+      if (!isRetryableGeminiError(error) || attempt >= maxAttempts) throw error;
+
+      const delayMs = retryDelay(attempt, baseDelayMs, random);
+      const budgetAfterFailure = timeoutMs - (now() - startedAt);
+      if (budgetAfterFailure < delayMs + GEMINI_MIN_RETRY_BUDGET_MS) throw error;
+      await sleep(delayMs, signal);
+    }
+  }
+
+  throw new Error('Estado de reintentos de Gemini no alcanzable.');
+}
+
 export function mapGeminiProviderError(error) {
   if (error?.name === 'RequestTimeoutError' || error?.name === 'AbortError') {
     return new GeminiServiceError(
@@ -173,6 +252,8 @@ export async function generateGeminiReply(
     model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL,
     timeoutMs = GEMINI_TIMEOUT_MS,
     clientFactory = buildGeminiClient,
+    signal,
+    retryPolicy,
   } = {}
 ) {
   if (typeof apiKey !== 'string' || apiKey.trim() === '') {
@@ -187,19 +268,31 @@ export async function generateGeminiReply(
 
   try {
     const client = clientFactory(apiKey);
-    const response = await client.models.generateContent({
-      model,
-      contents: message,
-      config: {
-        systemInstruction: ASSISTANT_SYSTEM_INSTRUCTION,
-        thinkingConfig: {
-          thinkingLevel: ThinkingLevel.LOW,
-        },
-        maxOutputTokens: 300,
-        automaticContinuation: false,
-        httpOptions: { timeout: timeoutMs },
-      },
-    });
+    const response = await executeGeminiRequestWithRetry(
+      ({ timeoutMs: attemptTimeoutMs, signal: attemptSignal }) =>
+        client.models.generateContent({
+          model,
+          contents: message,
+          config: {
+            systemInstruction: ASSISTANT_SYSTEM_INSTRUCTION,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
+            maxOutputTokens: 300,
+            automaticContinuation: false,
+            abortSignal: attemptSignal,
+            httpOptions: {
+              timeout: attemptTimeoutMs,
+              retryOptions: { attempts: 1 },
+            },
+          },
+        }),
+      {
+        timeoutMs,
+        signal,
+        ...retryPolicy,
+      }
+    );
 
     const reply = typeof response?.text === 'string' ? response.text.trim() : '';
 

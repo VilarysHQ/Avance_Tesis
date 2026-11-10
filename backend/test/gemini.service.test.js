@@ -7,6 +7,7 @@ import {
   ASSISTANT_SYSTEM_INSTRUCTION,
   buildGeminiErrorDiagnostic,
   DEFAULT_GEMINI_MODEL,
+  executeGeminiRequestWithRetry,
   GEMINI_TIMEOUT_MS,
   generateGeminiReply,
   GeminiServiceError,
@@ -37,6 +38,7 @@ test('construye la solicitud con modelo, instrucción y timeout seguros', async 
   assert.equal(request.contents, 'Hola');
   assert.equal(request.config.systemInstruction, ASSISTANT_SYSTEM_INSTRUCTION);
   assert.equal(request.config.httpOptions.timeout, 3210);
+  assert.equal(request.config.httpOptions.retryOptions.attempts, 1);
   assert.equal(request.config.thinkingConfig.thinkingLevel, 'LOW');
   assert.equal('temperature' in request.config, false);
   assert.equal(request.config.automaticContinuation, false);
@@ -60,6 +62,113 @@ test('usa un timeout predeterminado de 30 segundos', async () => {
 
   assert.equal(GEMINI_TIMEOUT_MS, 30_000);
   assert.equal(request.config.httpOptions.timeout, 30_000);
+});
+
+test('reintenta un 503 y devuelve el resultado del siguiente intento', async () => {
+  const delays = [];
+  let attempts = 0;
+
+  const result = await executeGeminiRequestWithRetry(
+    async () => {
+      attempts += 1;
+      if (attempts === 1) throw new ApiError({ status: 503, message: 'UNAVAILABLE' });
+      return 'ok';
+    },
+    {
+      timeoutMs: 30_000,
+      random: () => 0.5,
+      sleep: async (delay) => delays.push(delay),
+    }
+  );
+
+  assert.equal(result, 'ok');
+  assert.equal(attempts, 2);
+  assert.deepEqual(delays, [250]);
+});
+
+test('agota como máximo dos reintentos adicionales ante 503', async () => {
+  const delays = [];
+  let attempts = 0;
+  const unavailable = new ApiError({ status: 503, message: 'UNAVAILABLE' });
+
+  await assert.rejects(
+    executeGeminiRequestWithRetry(
+      async () => {
+        attempts += 1;
+        throw unavailable;
+      },
+      {
+        timeoutMs: 30_000,
+        random: () => 0.5,
+        sleep: async (delay) => delays.push(delay),
+      }
+    ),
+    unavailable
+  );
+
+  assert.equal(attempts, 3);
+  assert.deepEqual(delays, [250, 500]);
+});
+
+test('no reintenta errores no transitorios', async () => {
+  for (const status of [400, 401, 403, 404, 429, 500, 504]) {
+    let attempts = 0;
+    await assert.rejects(
+      executeGeminiRequestWithRetry(async () => {
+        attempts += 1;
+        throw new ApiError({ status, message: String(status) });
+      }),
+      (error) => error.status === status
+    );
+    assert.equal(attempts, 1);
+  }
+});
+
+test('no inicia otro intento cuando el presupuesto restante es insuficiente', async () => {
+  let clock = 0;
+  let attempts = 0;
+  let slept = false;
+
+  await assert.rejects(
+    executeGeminiRequestWithRetry(
+      async () => {
+        attempts += 1;
+        clock = 29_000;
+        throw new ApiError({ status: 503, message: 'UNAVAILABLE' });
+      },
+      {
+        timeoutMs: 30_000,
+        now: () => clock,
+        random: () => 0.5,
+        sleep: async () => {
+          slept = true;
+        },
+      }
+    ),
+    (error) => error.status === 503
+  );
+
+  assert.equal(attempts, 1);
+  assert.equal(slept, false);
+});
+
+test('la cancelación interrumpe la espera y evita más intentos', async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+
+  setTimeout(() => controller.abort(), 5);
+  await assert.rejects(
+    executeGeminiRequestWithRetry(
+      async () => {
+        attempts += 1;
+        throw new ApiError({ status: 503, message: 'UNAVAILABLE' });
+      },
+      { signal: controller.signal, baseDelayMs: 1_000 }
+    ),
+    (error) => error.name === 'AbortError'
+  );
+
+  assert.equal(attempts, 1);
 });
 
 test('falla de forma segura cuando falta GEMINI_API_KEY', async () => {

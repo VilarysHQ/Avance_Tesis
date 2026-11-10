@@ -28,8 +28,18 @@ export function createRequirementsController(extractRequirements = extractGemini
       });
     }
 
+    const abortController = new AbortController();
+    const abortRequest = () => abortController.abort();
+    const abortClosedResponse = () => {
+      if (!res.writableEnded) abortRequest();
+    };
+    req.once?.('aborted', abortRequest);
+    res.once?.('close', abortClosedResponse);
+
     try {
-      const result = await extractRequirements(normalizedMessage, context);
+      const result = await extractRequirements(normalizedMessage, context, {
+        signal: abortController.signal,
+      });
       return res.json({ success: true, ...result });
     } catch (error) {
       if (error instanceof RequirementsValidationError) {
@@ -50,6 +60,9 @@ export function createRequirementsController(extractRequirements = extractGemini
         success: false,
         error: 'Error interno del servidor.',
       });
+    } finally {
+      req.off?.('aborted', abortRequest);
+      res.off?.('close', abortClosedResponse);
     }
   };
 }

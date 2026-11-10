@@ -112,7 +112,61 @@ test('extrae varias funcionalidades e integraciones sin perder detalles explíci
   assert.equal(capture.request.config.responseMimeType, 'application/json');
   assert.equal(capture.request.config.responseJsonSchema, REQUIREMENTS_RESPONSE_SCHEMA);
   assert.equal(capture.request.config.httpOptions.timeout, 1234);
+  assert.equal(capture.request.config.httpOptions.retryOptions.attempts, 1);
   assert.equal(capture.request.config.automaticContinuation, false);
+});
+
+test('recupera la extracción cuando un 503 es seguido por éxito', async () => {
+  const output = state({
+    requirements: { projectType: 'landing' },
+    fieldStatus: { projectType: 'confirmed' },
+  });
+  let attempts = 0;
+
+  const result = await extractGeminiRequirements('Necesito una landing', null, {
+    apiKey: 'test-key',
+    clientFactory: () => ({
+      models: {
+        generateContent: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new ApiError({ status: 503, message: 'UNAVAILABLE' });
+          }
+          return { text: JSON.stringify(output) };
+        },
+      },
+    }),
+    retryPolicy: { random: () => 0.5, sleep: async () => {} },
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(result.requirements.projectType, 'landing');
+});
+
+test('devuelve error seguro tras tres respuestas 503', async () => {
+  let attempts = 0;
+
+  await assert.rejects(
+    extractGeminiRequirements('Necesito una web', null, {
+      apiKey: 'test-key',
+      clientFactory: () => ({
+        models: {
+          generateContent: async () => {
+            attempts += 1;
+            throw new ApiError({ status: 503, message: 'provider secret' });
+          },
+        },
+      }),
+      retryPolicy: { random: () => 0.5, sleep: async () => {} },
+    }),
+    (error) =>
+      error instanceof GeminiServiceError &&
+      error.code === 'AI_PROVIDER_ERROR' &&
+      error.statusCode === 502 &&
+      !error.publicMessage.includes('provider secret')
+  );
+
+  assert.equal(attempts, 3);
 });
 
 test('marca información incompleta y calcula la pregunta siguiente en backend', async () => {
