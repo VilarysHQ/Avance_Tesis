@@ -1,14 +1,17 @@
 import 'dotenv/config';
 import pg from 'pg';
 
+import { getDatabasePoolConfig } from './databaseConfig.js';
+
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL no está definida. Copia .env.example a .env y configúrala.');
-}
+export const pool = new Pool(getDatabasePoolConfig());
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+pool.on('error', (error) => {
+  console.error('[database:pool]', {
+    name: error?.name ?? 'Error',
+    code: typeof error?.code === 'string' ? error.code : null,
+  });
 });
 
 export const query = (text, params) => pool.query(text, params);
