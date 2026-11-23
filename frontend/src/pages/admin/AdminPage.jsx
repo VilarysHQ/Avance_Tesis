@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Inbox,
   FileText,
@@ -18,6 +19,7 @@ import AdminTopbar from "../../components/Admin/AdminTopbar";
 import AdminStatCard from "../../components/Admin/AdminStatCard";
 import RequestsTable from "../../components/Admin/RequestsTable";
 import RequestDetailModal from "../../components/Admin/RequestDetailModal";
+import ForecastReportPage from "../../components/Admin/ForecastReportPage";
 import {
   getAdminSession,
   getQuotes,
@@ -100,6 +102,8 @@ export default function AdminPage() {
 }
 
 function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
+  const location = useLocation();
+  const isReports = location.pathname.startsWith("/admin/reports");
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -123,6 +127,10 @@ function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
   };
 
   useEffect(() => {
+    if (isReports) {
+      return undefined;
+    }
+
     let active = true;
 
     getQuotes()
@@ -142,7 +150,7 @@ function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
     return () => {
       active = false;
     };
-  }, [onSessionExpired]);
+  }, [isReports, onSessionExpired]);
 
   const stats = useMemo(() => {
     const byStatus = (status) =>
@@ -235,9 +243,13 @@ function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
           adminEmail={adminUser?.email}
           onLogout={handleLogout}
           logoutLoading={logoutLoading}
+          showSearch={!isReports}
         />
 
         <div className="flex-1">
+          {isReports ? (
+            <ForecastReportPage onSessionExpired={onSessionExpired} />
+          ) : (
           <main className="min-w-0 p-5 sm:p-6">
             {/* HEADER */}
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -465,10 +477,11 @@ function AdminDashboard({ adminUser, onSessionExpired, onLogoutComplete }) {
               )}
             </div>
           </main>
+          )}
         </div>
       </div>
 
-      {selectedQuote && (
+      {!isReports && selectedQuote && (
         <RequestDetailModal
           key={selectedQuote.id}
           quote={selectedQuote}

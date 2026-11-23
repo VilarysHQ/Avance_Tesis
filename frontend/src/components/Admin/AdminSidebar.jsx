@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import {
   Home,
   Inbox,
@@ -14,11 +14,11 @@ import navbarLogo from "../../assets/navbar/navbarLogo.png";
 
 const NAV_ITEMS = [
   { key: "home", label: "Inicio", icon: Home, to: "/" },
-  { key: "requests", label: "Solicitudes", icon: Inbox, to: "/admin", active: true },
+  { key: "requests", label: "Solicitudes", icon: Inbox, to: "/admin", end: true },
   { key: "quotes", label: "Cotizaciones", icon: FileText, soon: true },
   { key: "sales", label: "Ventas", icon: ShoppingCart, soon: true },
   { key: "services", label: "Servicios", icon: Package, soon: true },
-  { label: "Reportes", icon: BarChart3, soon: true },
+  { key: "reports", label: "Reportes", icon: BarChart3, to: "/admin/reports" },
   { label: "Configuración", icon: Settings, soon: true },
 ];
 
@@ -134,14 +134,13 @@ export default function AdminSidebar({ open = false, onClose }) {
             );
           }
 
-          const isActive = item.label === "Solicitudes";
-
           return (
-            <Link
+            <NavLink
               key={item.label}
               to={item.to}
+              end={item.end}
               onClick={onClose}
-              className={`
+              className={({ isActive }) => `
                 flex
                 items-center
                 gap-3
@@ -161,7 +160,7 @@ export default function AdminSidebar({ open = false, onClose }) {
             >
               <Icon size={17} />
               {item.label}
-            </Link>
+            </NavLink>
           );
         })}
       </nav>

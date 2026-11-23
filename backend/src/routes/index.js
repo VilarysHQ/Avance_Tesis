@@ -8,6 +8,7 @@ import quotesRoutes from './quotes.routes.js';
 import quoteRequestsRoutes from './quoteRequests.routes.js';
 import salesRoutes from './sales.routes.js';
 import servicesRoutes from './services.routes.js';
+import forecastRoutes from './forecast.routes.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use('/leads', leadsRoutes);
 router.use('/quotes', quotesRoutes);
 router.use('/quote-requests', quoteRequestsRoutes);
 router.use('/sales', salesRoutes);
+router.use('/reports/forecast', forecastRoutes);
 
 export default router;

@@ -6,6 +6,7 @@ import {
   apiRequest,
   extractRequirements,
   getAdminSession,
+  getForecast,
   getQuotes,
   loginAdmin,
   logoutAdmin,
@@ -318,12 +319,16 @@ test("el cliente administrativo restaura cookie y envía CSRF en mutaciones", as
     if (url.endsWith("/quotes")) {
       return { ok: true, status: 200, json: async () => ({ data: [] }) };
     }
+    if (url.endsWith("/reports/forecast")) {
+      return { ok: true, status: 200, json: async () => ({ data: { status: "experimental" } }) };
+    }
     return { ok: true, status: 200, json: async () => ({ success: true }) };
   };
 
   await loginAdmin("admin@example.test", "not-a-real-password");
   await getAdminSession();
   await getQuotes();
+  const forecast = await getForecast();
   await updateQuoteStatus(7, "contacted");
   await logoutAdmin();
 
@@ -331,11 +336,14 @@ test("el cliente administrativo restaura cookie y envía CSRF en mutaciones", as
   assert.equal(requests[1].options.credentials, "include");
   assert.equal(requests[2].options.credentials, "include");
   assert.equal(requests[2].options.headers["X-CSRF-Token"], undefined);
-  assert.equal(requests[3].options.headers["X-CSRF-Token"], "csrf-test-token");
-  assert.equal(requests[3].options.headers["Content-Type"], "application/json");
-  assert.deepEqual(JSON.parse(requests[3].options.body), { status: "contacted" });
+  assert.equal(requests[3].options.credentials, "include");
+  assert.equal(requests[3].options.headers["X-CSRF-Token"], undefined);
+  assert.equal(forecast.status, "experimental");
   assert.equal(requests[4].options.headers["X-CSRF-Token"], "csrf-test-token");
   assert.equal(requests[4].options.headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(requests[4].options.body), { status: "contacted" });
+  assert.equal(requests[5].options.headers["X-CSRF-Token"], "csrf-test-token");
+  assert.equal(requests[5].options.headers["Content-Type"], "application/json");
 });
 
 test("una respuesta 401 invalida la sesión administrativa local", async (t) => {

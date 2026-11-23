@@ -1,0 +1,6 @@
+# Machine Learning
+/ml/.venv/
+/ml/data/
+/ml/output/*.joblib
+**/__pycache__/
+*.pyc

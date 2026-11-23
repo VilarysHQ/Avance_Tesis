@@ -7,6 +7,7 @@ export default function AdminTopbar({
   adminEmail,
   onLogout,
   logoutLoading = false,
+  showSearch = true,
 }) {
   return (
     <header
@@ -49,7 +50,7 @@ export default function AdminTopbar({
       </button>
 
       {/* SEARCH */}
-      <div
+      {showSearch && <div
         className="
           flex
           h-11
@@ -86,7 +87,7 @@ export default function AdminTopbar({
             placeholder:text-slate-400
           "
         />
-      </div>
+      </div>}
 
       {/* USER */}
       <div className="ml-auto flex items-center gap-3">
