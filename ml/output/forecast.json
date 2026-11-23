@@ -1,0 +1,405 @@
+{
+  "status": "experimental",
+  "source": "UCI Machine Learning Repository - Online Retail",
+  "dataset": "Online Retail",
+  "currency": "GBP",
+  "company_data": false,
+  "target": "daily_revenue",
+  "model": "RandomForestRegressor",
+  "validation": "chronological_holdout_80_20",
+  "evaluation_type": "one_step_ahead_with_observed_lags",
+  "forecast_type": "recursive_14_day",
+  "dataset_period": {
+    "start": "2010-12-01",
+    "end": "2011-12-09"
+  },
+  "original_rows": 541909,
+  "valid_rows": 530104,
+  "days": 374,
+  "train_samples": 276,
+  "test_samples": 70,
+  "metrics": {
+    "mae": 13097.23,
+    "rmse": 23272.42,
+    "baseline_mae": 14184.32,
+    "baseline_rmse": 24338.02
+  },
+  "horizon_metrics": {
+    "one_step": {
+      "description": "holdout with observed lag values",
+      "observations": 70,
+      "mae": 13097.23,
+      "rmse": 23272.42,
+      "baseline": "seasonal_naive_lag_7_observed",
+      "baseline_mae": 14184.32,
+      "baseline_rmse": 24338.02
+    },
+    "recursive_14_day": {
+      "strategy": "rolling_origin_expanding_window",
+      "horizon_days": 14,
+      "blocks": [
+        {
+          "origin": "2011-10-01",
+          "end": "2011-10-14",
+          "train_samples": 276,
+          "metrics": {
+            "mae": 10969.39,
+            "rmse": 13873.14,
+            "baseline_mae": 14970.87,
+            "baseline_rmse": 18023.7
+          }
+        },
+        {
+          "origin": "2011-10-15",
+          "end": "2011-10-28",
+          "train_samples": 290,
+          "metrics": {
+            "mae": 6871.87,
+            "rmse": 8312.82,
+            "baseline_mae": 8817.23,
+            "baseline_rmse": 12311.6
+          }
+        },
+        {
+          "origin": "2011-10-29",
+          "end": "2011-11-11",
+          "train_samples": 304,
+          "metrics": {
+            "mae": 12203.59,
+            "rmse": 15256.86,
+            "baseline_mae": 15722.57,
+            "baseline_rmse": 19076.7
+          }
+        },
+        {
+          "origin": "2011-11-12",
+          "end": "2011-11-25",
+          "train_samples": 318,
+          "metrics": {
+            "mae": 9306.79,
+            "rmse": 17046.11,
+            "baseline_mae": 10240.86,
+            "baseline_rmse": 14729.91
+          }
+        },
+        {
+          "origin": "2011-11-26",
+          "end": "2011-12-09",
+          "train_samples": 332,
+          "metrics": {
+            "mae": 18357.98,
+            "rmse": 38529.15,
+            "baseline_mae": 21527.11,
+            "baseline_rmse": 43099.9
+          }
+        }
+      ],
+      "observations": 70,
+      "mae": 11541.93,
+      "rmse": 21304.48,
+      "baseline": "seasonal_naive_lag_7_recursive",
+      "baseline_mae": 14255.73,
+      "baseline_rmse": 24145.07
+    }
+  },
+  "history": [
+    {
+      "date": "2011-10-11",
+      "sales": 52572.94
+    },
+    {
+      "date": "2011-10-12",
+      "sales": 32159.28
+    },
+    {
+      "date": "2011-10-13",
+      "sales": 37446.18
+    },
+    {
+      "date": "2011-10-14",
+      "sales": 36347.64
+    },
+    {
+      "date": "2011-10-15",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-10-16",
+      "sales": 22010.96
+    },
+    {
+      "date": "2011-10-17",
+      "sales": 52062.2
+    },
+    {
+      "date": "2011-10-18",
+      "sales": 45332.16
+    },
+    {
+      "date": "2011-10-19",
+      "sales": 42573.36
+    },
+    {
+      "date": "2011-10-20",
+      "sales": 61122.9
+    },
+    {
+      "date": "2011-10-21",
+      "sales": 63226.64
+    },
+    {
+      "date": "2011-10-22",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-10-23",
+      "sales": 12339.16
+    },
+    {
+      "date": "2011-10-24",
+      "sales": 48752.91
+    },
+    {
+      "date": "2011-10-25",
+      "sales": 41314.64
+    },
+    {
+      "date": "2011-10-26",
+      "sales": 38059.43
+    },
+    {
+      "date": "2011-10-27",
+      "sales": 57291.72
+    },
+    {
+      "date": "2011-10-28",
+      "sales": 40565.7
+    },
+    {
+      "date": "2011-10-29",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-10-30",
+      "sales": 34571.23
+    },
+    {
+      "date": "2011-10-31",
+      "sales": 57369.15
+    },
+    {
+      "date": "2011-11-01",
+      "sales": 29155.15
+    },
+    {
+      "date": "2011-11-02",
+      "sales": 45888.34
+    },
+    {
+      "date": "2011-11-03",
+      "sales": 63561.49
+    },
+    {
+      "date": "2011-11-04",
+      "sales": 62977.36
+    },
+    {
+      "date": "2011-11-05",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-11-06",
+      "sales": 42946.34
+    },
+    {
+      "date": "2011-11-07",
+      "sales": 85881.81
+    },
+    {
+      "date": "2011-11-08",
+      "sales": 57700.24
+    },
+    {
+      "date": "2011-11-09",
+      "sales": 66127.57
+    },
+    {
+      "date": "2011-11-10",
+      "sales": 71008.26
+    },
+    {
+      "date": "2011-11-11",
+      "sales": 55257.17
+    },
+    {
+      "date": "2011-11-12",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-11-13",
+      "sales": 34069.92
+    },
+    {
+      "date": "2011-11-14",
+      "sales": 114419.89
+    },
+    {
+      "date": "2011-11-15",
+      "sales": 60807.29
+    },
+    {
+      "date": "2011-11-16",
+      "sales": 65958.17
+    },
+    {
+      "date": "2011-11-17",
+      "sales": 61103.13
+    },
+    {
+      "date": "2011-11-18",
+      "sales": 51275.39
+    },
+    {
+      "date": "2011-11-19",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-11-20",
+      "sales": 35058.57
+    },
+    {
+      "date": "2011-11-21",
+      "sales": 49805.72
+    },
+    {
+      "date": "2011-11-22",
+      "sales": 64089.82
+    },
+    {
+      "date": "2011-11-23",
+      "sales": 80104.18
+    },
+    {
+      "date": "2011-11-24",
+      "sales": 50978.63
+    },
+    {
+      "date": "2011-11-25",
+      "sales": 50822.73
+    },
+    {
+      "date": "2011-11-26",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-11-27",
+      "sales": 20611.08
+    },
+    {
+      "date": "2011-11-28",
+      "sales": 57165.19
+    },
+    {
+      "date": "2011-11-29",
+      "sales": 72595.93
+    },
+    {
+      "date": "2011-11-30",
+      "sales": 60126.96
+    },
+    {
+      "date": "2011-12-01",
+      "sales": 52197.25
+    },
+    {
+      "date": "2011-12-02",
+      "sales": 57664.07
+    },
+    {
+      "date": "2011-12-03",
+      "sales": 0.0
+    },
+    {
+      "date": "2011-12-04",
+      "sales": 24621.43
+    },
+    {
+      "date": "2011-12-05",
+      "sales": 88741.96
+    },
+    {
+      "date": "2011-12-06",
+      "sales": 56713.21
+    },
+    {
+      "date": "2011-12-07",
+      "sales": 75439.16
+    },
+    {
+      "date": "2011-12-08",
+      "sales": 82495.0
+    },
+    {
+      "date": "2011-12-09",
+      "sales": 200920.6
+    }
+  ],
+  "forecast": [
+    {
+      "date": "2011-12-10",
+      "predicted_sales": 1363.09
+    },
+    {
+      "date": "2011-12-11",
+      "predicted_sales": 42308.92
+    },
+    {
+      "date": "2011-12-12",
+      "predicted_sales": 95625.23
+    },
+    {
+      "date": "2011-12-13",
+      "predicted_sales": 96830.92
+    },
+    {
+      "date": "2011-12-14",
+      "predicted_sales": 95822.5
+    },
+    {
+      "date": "2011-12-15",
+      "predicted_sales": 95421.07
+    },
+    {
+      "date": "2011-12-16",
+      "predicted_sales": 93012.12
+    },
+    {
+      "date": "2011-12-17",
+      "predicted_sales": 1363.09
+    },
+    {
+      "date": "2011-12-18",
+      "predicted_sales": 51868.1
+    },
+    {
+      "date": "2011-12-19",
+      "predicted_sales": 91638.26
+    },
+    {
+      "date": "2011-12-20",
+      "predicted_sales": 94306.47
+    },
+    {
+      "date": "2011-12-21",
+      "predicted_sales": 93159.36
+    },
+    {
+      "date": "2011-12-22",
+      "predicted_sales": 92402.6
+    },
+    {
+      "date": "2011-12-23",
+      "predicted_sales": 91732.07
+    }
+  ]
+}

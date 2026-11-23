@@ -154,6 +154,15 @@ export async function getQuotes() {
 }
 
 /**
+ * Devuelve el pronóstico experimental protegido para el panel administrativo.
+ * GET /api/reports/forecast
+ */
+export async function getForecast() {
+  const body = await adminRequest("/reports/forecast");
+  return body?.data ?? null;
+}
+
+/**
  * Actualiza el estado de una cotización.
  * PATCH /api/quotes/:id/status
  */
