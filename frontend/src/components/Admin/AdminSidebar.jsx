@@ -31,11 +31,11 @@ export default function AdminSidebar({ open = false, onClose }) {
         left-0
         z-40
         flex
-        w-[240px]
+        w-[252px]
         shrink-0
         flex-col
         border-r
-        border-slate-100
+        border-slate-200/70
         bg-white
         transition-transform
         duration-300
@@ -47,12 +47,12 @@ export default function AdminSidebar({ open = false, onClose }) {
       `}
     >
       {/* LOGO */}
-      <div className="flex h-[76px] items-center justify-between border-b border-slate-100 px-5">
+      <div className="flex h-[70px] items-center justify-between border-b border-slate-100 px-5">
         <Link to="/" className="shrink-0" onClick={onClose}>
           <img
             src={navbarLogo}
             alt="J&P Periféricos"
-            className="h-auto w-[130px]"
+            className="h-auto w-[124px]"
           />
         </Link>
 
@@ -79,9 +79,9 @@ export default function AdminSidebar({ open = false, onClose }) {
       </div>
 
       {/* NAV */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-          Menú
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+        <p className="px-3 pb-2.5 text-[9px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
+          Espacio de trabajo
         </p>
 
         {NAV_ITEMS.map((item) => {
@@ -107,7 +107,7 @@ export default function AdminSidebar({ open = false, onClose }) {
                   text-left
                   text-[13px]
                   font-medium
-                  text-slate-400
+                  text-slate-400/80
                 "
               >
                 <span className="flex items-center gap-3">
@@ -117,18 +117,16 @@ export default function AdminSidebar({ open = false, onClose }) {
 
                 <span
                   className="
-                    hidden
-                    rounded-full
+                    rounded-md
                     bg-slate-100
                     px-2
                     py-0.5
                     text-[9px]
                     font-semibold
                     text-slate-400
-                    group-hover:inline-block
                   "
                 >
-                  Próximamente
+                  Pronto
                 </span>
               </button>
             );
@@ -143,9 +141,10 @@ export default function AdminSidebar({ open = false, onClose }) {
               className={({ isActive }) => `
                 flex
                 items-center
+                relative
                 gap-3
                 rounded-xl
-                px-3
+                px-3.5
                 py-2.5
                 text-[13px]
                 font-semibold
@@ -153,25 +152,28 @@ export default function AdminSidebar({ open = false, onClose }) {
 
                 ${
                   isActive
-                    ? "bg-[#eef4ff] text-[#173cff]"
+                    ? "bg-blue-50 text-[#173cff] shadow-[inset_0_0_0_1px_rgba(23,60,255,0.06)]"
                     : "text-slate-600 hover:bg-slate-50 hover:text-[#173cff]"
                 }
               `}
             >
-              <Icon size={17} />
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  {isActive && <span className="absolute left-0 h-5 w-0.5 rounded-full bg-[#173cff]" />}
+                  <Icon size={17} />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="border-t border-slate-100 px-5 py-4">
-        <p className="text-[10px] font-medium text-slate-400">
-          Panel administrativo
-        </p>
-        <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-          J&P Periféricos S.A.C.
-        </p>
+      <div className="border-t border-slate-100 p-4">
+        <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+          <p className="flex items-center gap-2 text-[10px] font-bold text-slate-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Panel administrativo</p>
+          <p className="mt-1 text-[10px] text-slate-400">J&amp;P Periféricos S.A.C.</p>
+        </div>
       </div>
     </aside>
   );

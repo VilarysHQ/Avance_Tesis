@@ -2,13 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, BarChart3, Loader2, RefreshCw, TriangleAlert } from "lucide-react";
 
 import { getForecast } from "../../services/api";
-import {
-  formatGbp,
-  formatReportDate,
-  getReportPeriod,
-  hasForecastContent,
-  prepareForecastSeries,
-} from "../../utils/forecast";
+import { getReportPeriod, hasForecastContent, prepareForecastSeries } from "../../utils/forecast";
+import AdminPageHeader from "./AdminPageHeader";
+import AdminStatePanel from "./AdminStatePanel";
+import ForecastMetricCard from "./ForecastMetricCard";
+import ForecastTechnicalCard from "./ForecastTechnicalCard";
 import SalesForecastChart from "./SalesForecastChart";
 
 function friendlyError(error) {
@@ -18,149 +16,125 @@ function friendlyError(error) {
   return "No se pudo cargar el pronóstico.";
 }
 
-function MetricCard({ label, value, baseline }) {
-  const improves = Number.isFinite(value) && Number.isFinite(baseline) && value < baseline;
-  return (
-    <article className="rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_12px_35px_rgba(30,64,175,0.05)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <p className="mt-2 text-xl font-extrabold text-[#07112d]">{formatGbp(value)}</p>
-      <p className="mt-1 text-xs text-slate-500">
-        Base: {formatGbp(baseline)} · {improves ? "mejora frente a la base" : "sin mejora frente a la base"}
-      </p>
-    </article>
-  );
-}
-
 export default function ForecastReportPage({ onSessionExpired }) {
   const [state, setState] = useState({ status: "loading", data: null, error: "" });
+
+  const handleResult = useCallback((data) => {
+    setState({ status: hasForecastContent(data) ? "ready" : "empty", data, error: "" });
+  }, []);
+
+  const handleError = useCallback((error) => {
+    if (error?.status === 401 || error?.status === 403) {
+      onSessionExpired();
+      return;
+    }
+    setState({ status: "error", data: null, error: friendlyError(error) });
+  }, [onSessionExpired]);
 
   const load = useCallback(async () => {
     setState((current) => ({ ...current, status: "loading", error: "" }));
     try {
-      const data = await getForecast();
-      setState({ status: hasForecastContent(data) ? "ready" : "empty", data, error: "" });
+      handleResult(await getForecast());
     } catch (error) {
-      if (error?.status === 401 || error?.status === 403) {
-        onSessionExpired();
-        return;
-      }
-      setState({ status: "error", data: null, error: friendlyError(error) });
+      handleError(error);
     }
-  }, [onSessionExpired]);
+  }, [handleError, handleResult]);
 
   useEffect(() => {
     let active = true;
     getForecast()
       .then((data) => {
-        if (!active) return;
-        setState({ status: hasForecastContent(data) ? "ready" : "empty", data, error: "" });
+        if (active) handleResult(data);
       })
       .catch((error) => {
-        if (!active) return;
-        if (error?.status === 401 || error?.status === 403) {
-          onSessionExpired();
-          return;
-        }
-        setState({ status: "error", data: null, error: friendlyError(error) });
+        if (active) handleError(error);
       });
     return () => {
       active = false;
     };
-  }, [onSessionExpired]);
+  }, [handleError, handleResult]);
 
   if (state.status === "loading") {
-    return <ReportState icon={Loader2} spin message="Cargando pronóstico experimental..." />;
+    return <ReportState icon={Loader2} spin message="Preparando el reporte" detail="Cargando el pronóstico experimental y sus métricas." />;
   }
   if (state.status === "error") {
-    return <ReportState icon={AlertCircle} message={state.error} action={load} />;
+    return <ReportState icon={AlertCircle} message="No pudimos cargar el reporte" detail={state.error} action={load} />;
   }
   if (state.status === "empty") {
-    return <ReportState icon={BarChart3} message="Todavía no hay datos de pronóstico disponibles." action={load} />;
+    return <ReportState icon={BarChart3} message="Aún no hay predicciones" detail="Genera y publica un artefacto de pronóstico para visualizarlo aquí." action={load} />;
   }
 
   const report = state.data;
   const series = prepareForecastSeries(report);
-  const period = getReportPeriod(report);
-  const recursiveMetrics = report.horizon_metrics?.recursive_14_day;
-  const datasetPeriod = report.dataset_period;
+  const visualPeriod = getReportPeriod(report);
+  const recursive = report.horizon_metrics?.recursive_14_day;
+  const oneStep = report.horizon_metrics?.one_step ?? report.metrics;
 
   return (
-    <main className="min-w-0 p-5 sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-[#07112d]">Pronóstico de ventas</h1>
-          <p className="mt-1 text-[13px] text-slate-500">Evaluación experimental de series temporales para fines académicos.</p>
-        </div>
-        <button type="button" onClick={load} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-[#173cff]">
-          <RefreshCw size={14} /> Actualizar
-        </button>
-      </div>
+    <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-7">
+      <AdminPageHeader
+        eyebrow="Machine Learning"
+        title="Pronóstico de ventas"
+        description="Lectura experimental del comportamiento histórico y proyección recursiva de los próximos 14 días."
+        action={(
+          <button type="button" onClick={load} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-blue-300 hover:text-[#173cff] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">
+            <RefreshCw size={14} /> Actualizar
+          </button>
+        )}
+      />
 
-      <section className="mt-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950" aria-label="Advertencia sobre los datos">
-        <TriangleAlert className="mt-0.5 shrink-0 text-amber-600" size={20} />
-        <div className="text-sm leading-6">
-          <p className="font-bold">Datos experimentales: no representan ventas reales de J&amp;P Periféricos.</p>
-          <p>Fuente: UCI Online Retail. Los importes están en GBP y el pronóstico continúa el periodo histórico de 2011; no corresponde a 2026.</p>
+      <aside className="mt-5 flex gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/75 px-4 py-3 text-amber-950" aria-label="Advertencia sobre los datos">
+        <TriangleAlert className="mt-0.5 shrink-0 text-amber-600" size={18} />
+        <div className="text-xs leading-5">
+          <p className="font-extrabold">Dataset público experimental, no ventas reales de J&amp;P Periféricos.</p>
+          <p className="text-amber-800/80">Online Retail (UCI), importes en GBP y pronóstico posterior al historial de 2011; no corresponde a 2026.</p>
         </div>
+      </aside>
+
+      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores de evaluación a 14 días">
+        <ForecastMetricCard label="MAE · 14 días" value={recursive?.mae} baseline={recursive?.baseline_mae} />
+        <ForecastMetricCard label="RMSE · 14 días" value={recursive?.rmse} baseline={recursive?.baseline_rmse} />
+        <ForecastMetricCard label="Observaciones evaluadas" value={recursive?.observations} count note={`${recursive?.blocks?.length ?? 0} bloques temporales`} />
       </section>
 
-      <section className="mt-5 overflow-x-auto rounded-[18px] border border-slate-100 bg-white p-4 shadow-[0_20px_60px_rgba(30,64,175,0.06)] sm:p-5" aria-label="Gráfico del pronóstico">
-        <div className="mb-3 flex flex-wrap gap-5 text-xs font-semibold text-slate-600">
-          <span className="flex items-center gap-2"><span className="h-0.5 w-7 bg-[#173cff]" /> Histórico (30 días)</span>
-          <span className="flex items-center gap-2"><span className="w-7 border-t-2 border-dashed border-violet-600" /> Pronóstico (14 días)</span>
+      <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200/75 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.055)]" aria-labelledby="forecast-chart-heading">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <h2 id="forecast-chart-heading" className="text-sm font-extrabold text-[#0b1739]">Histórico y proyección</h2>
+            <p className="mt-0.5 text-[11px] text-slate-400">Últimos 30 días observados frente a 14 días pronosticados.</p>
+          </div>
+          <div className="flex flex-wrap gap-4 text-[10px] font-bold text-slate-500">
+            <span className="flex items-center gap-2"><span className="h-0.5 w-6 bg-[#173cff]" /> Histórico</span>
+            <span className="flex items-center gap-2"><span className="w-6 border-t-2 border-dashed border-violet-600" /> Pronóstico</span>
+          </div>
         </div>
-        <SalesForecastChart history={series.history} forecast={series.forecast} />
+        <div className="overflow-x-auto px-3 pb-2 pt-1 sm:px-5"><SalesForecastChart history={series.history} forecast={series.forecast} /></div>
       </section>
 
-      <section className="mt-5" aria-labelledby="one-step-metrics">
-        <h2 id="one-step-metrics" className="font-extrabold text-[#07112d]">Evaluación a un día</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-500">Cada predicción utiliza los rezagos reales que ya estaban observados en el conjunto de evaluación.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <MetricCard label="MAE · 1 día" value={report.metrics?.mae} baseline={report.metrics?.baseline_mae} />
-          <MetricCard label="RMSE · 1 día" value={report.metrics?.rmse} baseline={report.metrics?.baseline_rmse} />
-        </div>
-      </section>
-
-      {recursiveMetrics && (
-        <section className="mt-5" aria-labelledby="recursive-metrics">
-          <h2 id="recursive-metrics" className="font-extrabold text-[#07112d]">Evaluación recursiva a 14 días</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Las predicciones anteriores alimentan los rezagos siguientes, sin observar los valores reales del bloque. {recursiveMetrics.blocks?.length ?? 0} bloques, {recursiveMetrics.observations ?? 0} observaciones.
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <MetricCard label="MAE · 14 días" value={recursiveMetrics.mae} baseline={recursiveMetrics.baseline_mae} />
-            <MetricCard label="RMSE · 14 días" value={recursiveMetrics.rmse} baseline={recursiveMetrics.baseline_rmse} />
+      <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <section className="rounded-2xl border border-slate-200/75 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.045)]" aria-labelledby="one-step-metrics">
+          <h2 id="one-step-metrics" className="text-sm font-extrabold text-[#0b1739]">Evaluación a un día</h2>
+          <p className="mt-0.5 text-[11px] leading-5 text-slate-400">Usa rezagos reales ya observados; se mantiene separada del horizonte recursivo.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <CompactMetric label="MAE" value={oneStep?.mae} baseline={oneStep?.baseline_mae} />
+            <CompactMetric label="RMSE" value={oneStep?.rmse} baseline={oneStep?.baseline_rmse} />
           </div>
         </section>
-      )}
-
-      <section className="mt-5 rounded-[18px] border border-slate-100 bg-white p-5 shadow-[0_20px_60px_rgba(30,64,175,0.06)]" aria-labelledby="forecast-details">
-        <h2 id="forecast-details" className="font-extrabold text-[#07112d]">Ficha del experimento</h2>
-        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <Detail label="Dataset" value={report.dataset} />
-          <Detail label="Algoritmo" value={report.model} />
-          <Detail label="Periodo del dataset" value={datasetPeriod?.start && datasetPeriod?.end ? `${formatReportDate(datasetPeriod.start)} – ${formatReportDate(datasetPeriod.end)}` : "—"} />
-          <Detail label="Periodo visualizado" value={period ? `${formatReportDate(period.start)} – ${formatReportDate(period.end)}` : "—"} />
-          <Detail label="Cobertura del dataset" value={Number.isFinite(report.days) ? `${report.days} días` : "—"} />
-          <Detail label="Observaciones de entrenamiento" value={report.train_samples} />
-          <Detail label="Observaciones de prueba" value={report.test_samples} />
-        </dl>
-      </section>
+        <ForecastTechnicalCard report={report} visualPeriod={visualPeriod} />
+      </div>
     </main>
   );
 }
 
-function Detail({ label, value }) {
-  return <div><dt className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</dt><dd className="mt-1 font-semibold text-slate-700">{value ?? "—"}</dd></div>;
+function CompactMetric({ label, value, baseline }) {
+  return <ForecastMetricCard label={`${label} · 1 día`} value={value} baseline={baseline} />;
 }
 
-function ReportState({ icon: Icon, spin = false, message, action }) {
+function ReportState({ icon, message, detail, action, spin }) {
   return (
-    <main className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="text-center">
-        <Icon size={30} className={`mx-auto text-[#173cff] ${spin ? "animate-spin" : ""}`} />
-        <p className="mt-3 text-sm text-slate-600">{message}</p>
-        {action && <button type="button" onClick={action} className="mt-4 rounded-xl bg-[#173cff] px-4 py-2.5 text-xs font-semibold text-white">Reintentar</button>}
+    <main className="mx-auto flex min-h-[calc(100vh-70px)] max-w-[1600px] items-center justify-center p-5">
+      <div className="w-full max-w-xl rounded-2xl border border-slate-200/75 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.055)]">
+        <AdminStatePanel icon={icon} message={message} detail={detail} spin={spin} action={action ? { label: "Reintentar", onClick: action } : undefined} />
       </div>
     </main>
   );

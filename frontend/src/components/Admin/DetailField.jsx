@@ -8,8 +8,8 @@ export default function DetailField({
   const display = isEmpty ? "No indicado" : String(value);
 
   return (
-    <div className="flex items-baseline gap-2.5">
-      <dt className="w-[92px] shrink-0 text-[11px] font-medium text-slate-400">
+    <div className="flex items-start gap-2.5">
+      <dt className="w-[92px] shrink-0 pt-0.5 text-[10px] font-semibold leading-4 text-slate-400">
         {label}
       </dt>
       <dd
