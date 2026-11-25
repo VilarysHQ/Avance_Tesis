@@ -83,14 +83,6 @@ export default function ForecastReportPage({ onSessionExpired }) {
         )}
       />
 
-      <aside className="mt-5 flex gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/75 px-4 py-3 text-amber-950" aria-label="Advertencia sobre los datos">
-        <TriangleAlert className="mt-0.5 shrink-0 text-amber-600" size={18} />
-        <div className="text-xs leading-5">
-          <p className="font-extrabold">Dataset público experimental, no ventas reales de J&amp;P Periféricos.</p>
-          <p className="text-amber-800/80">Online Retail (UCI), importes en GBP y pronóstico posterior al historial de 2011; no corresponde a 2026.</p>
-        </div>
-      </aside>
-
       <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores de evaluación a 14 días">
         <ForecastMetricCard label="MAE · 14 días" value={recursive?.mae} baseline={recursive?.baseline_mae} />
         <ForecastMetricCard label="RMSE · 14 días" value={recursive?.rmse} baseline={recursive?.baseline_rmse} />
